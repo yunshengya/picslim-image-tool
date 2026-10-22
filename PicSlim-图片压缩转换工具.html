@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PicSlim · 本地图片批量压缩转换工具</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%2306b6d4'>P</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --bg: #0a0a0f;
+    --panel: #12121a;
+    --panel-light: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e4e4ef;
+    --text-dim: #8888a0;
+    --accent: #06b6d4;
+    --accent-light: #22d3ee;
+    --success: #10b981;
+  }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  
+  /* 头部 */
+  .header {
+    text-align: center;
+    padding: 40px 20px 30px;
+  }
+  
+  .logo {
+    font-size: 36px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-light), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .logo-sub {
+    font-size: 15px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+  
+  .badge {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 4px 12px;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--accent-light);
+  }
+  
+  /* 上传区域 */
+  .upload-zone {
+    background: var(--panel);
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 60px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-bottom: 20px;
+  }
+  
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(6, 182, 212, 0.05);
+  }
+  
+  .upload-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+  
+  .upload-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  
+  .upload-desc {
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  
+  #file-input {
+    display: none;
+  }
+  
+  /* 设置面板 */
+  .settings {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+  }
+  
+  .setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .setting-label {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  
+  .slider-value {
+    width: 50px;
+    text-align: right;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-light);
+    font-variant-numeric: tabular-nums;
+  }
+  
+  /* 自定义选项按钮组 */
+  .option-group {
+    display: grid;
+    gap: 8px;
+  }
+  
+  .option-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .option-row.three {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .option-btn {
+    padding: 10px 8px;
+    background: var(--panel-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  
+  .option-btn:hover {
+    border-color: var(--text-dim);
+    color: var(--text);
+  }
+  
+  .option-btn.active {
+    background: rgba(6, 182, 212, 0.15);
+    border-color: var(--accent);
+    color: var(--accent-light);
+  }
+  
+  /* 统计信息 */
+  .stats-bar {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  
+  .stats-info {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  
+  .stat-item {
+    font-size: 14px;
+  }
+  
+  .stat-label {
+    color: var(--text-dim);
+    margin-right: 6px;
+  }
+  
+  .stat-value {
+    font-weight: 600;
+    color: var(--accent-light);
+    font-variant-numeric: tabular-nums;
+  }
+  
+  /* 按钮 */
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #0891b2);
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(6, 182, 212, 0.4);
+  }
+  
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .btn-secondary {
+    background: var(--panel-light);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  
+  .btn-secondary:hover {
+    background: var(--border);
+  }
+  
+  /* 图片列表 */
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  
+  .image-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  
+  .image-preview {
+    width: 100%;
+    height: 160px;
+    background: var(--panel-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  
+  .image-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  
+  .image-info {
+    padding: 12px;
+  }
+  
+  .image-name {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .image-size {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  
+  .image-size.original {
+    color: var(--text-dim);
+  }
+  
+  .image-size.compressed {
+    color: var(--success);
+    font-weight: 600;
+  }
+  
+  .image-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  
+  .image-actions button {
+    flex: 1;
+    padding: 6px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+  
+  /* 隐私提示 */
+  .privacy-note {
+    margin-top: 30px;
+    padding: 16px;
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 12px;
+    font-size: 13px;
+    color: var(--success);
+    text-align: center;
+  }
+  
+  /* 响应式 */
+  @media (max-width: 768px) {
+    .header {
+      padding: 30px 16px 20px;
+    }
+    
+    .logo {
+      font-size: 28px;
+    }
+    
+    .settings {
+      grid-template-columns: 1fr;
+    }
+    
+    .stats-bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .stats-info {
+      justify-content: space-around;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <img src="logo.png" alt="PicSlim" style="width:80px; height:80px; border-radius:16px; margin-bottom:16px;">
+    <div class="logo">PicSlim</div>
+    <div class="logo-sub">本地图片批量压缩转换工具 · 不上传服务器，原图安全</div>
+    <div class="badge">100% 浏览器本地处理 · 隐私安全 · AI智能推荐</div>
+  </div>
+  
+  <!-- 上传区域 -->
+  <div class="upload-zone" id="upload-zone">
+    <div class="upload-icon">📁</div>
+    <div class="upload-title">点击或拖拽图片到这里</div>
+    <div class="upload-desc">支持 PNG / JPG / WebP / GIF，批量上传，本地压缩不上传</div>
+  </div>
+  <input type="file" id="file-input" multiple accept="image/*">
+  
+  <!-- 设置面板 -->
+  <div class="settings">
+    <div style="grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; justify-content: space-between;">
+      <span style="font-size: 14px; font-weight: 600;">压缩参数设置</span>
+      <button class="btn btn-primary" id="ai-recommend-btn" style="padding: 8px 16px; font-size: 13px;">
+        ✨ AI 智能推荐参数
+      </button>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">压缩质量：<span class="slider-value" id="quality-value">80%</span></label>
+      <div class="slider-group">
+        <input type="range" class="slider" id="quality-slider" min="10" max="100" step="5" value="80">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">输出格式</label>
+      <div class="option-group">
+        <div class="option-row">
+          <button class="option-btn active" data-format="original">原格式</button>
+          <button class="option-btn" data-format="jpeg">JPG</button>
+        </div>
+        <div class="option-row">
+          <button class="option-btn" data-format="webp">WebP 推荐</button>
+          <button class="option-btn" data-format="png">PNG</button>
+        </div>
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">图片缩放</label>
+      <div class="option-group">
+        <div class="option-row three">
+          <button class="option-btn active" data-scale="1">100%</button>
+          <button class="option-btn" data-scale="0.75">75%</button>
+          <button class="option-btn" data-scale="0.5">50%</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 统计栏 -->
+  <div class="stats-bar" id="stats-bar" style="display:none;">
+    <div class="stats-info">
+      <div class="stat-item">
+        <span class="stat-label">图片数量：</span>
+        <span class="stat-value" id="stat-count">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">原始大小：</span>
+        <span class="stat-value" id="stat-original">0 KB</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">压缩后：</span>
+        <span class="stat-value" id="stat-compressed">0 KB</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">节省：</span>
+        <span class="stat-value" id="stat-saved">0%</span>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-secondary" id="clear-btn">清空</button>
+      <button class="btn btn-primary" id="download-all-btn" disabled>打包下载全部</button>
+    </div>
+  </div>
+  
+  <!-- 图片列表 -->
+  <div class="image-grid" id="image-grid"></div>
+  
+  <div class="privacy-note">
+    🔒 所有图片处理都在你的浏览器本地完成，不会上传到任何服务器，原图隐私安全。
+  </div>
+</div>
+
+<script>
+const state = {
+  images: [], // { file, originalSize, compressedBlob, compressedSize, url, name }
+  quality: 0.8,
+  format: 'original',
+  scale: 1
+};
+
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+const imageGrid = document.getElementById('image-grid');
+const statsBar = document.getElementById('stats-bar');
+
+// 上传区域交互
+uploadZone.addEventListener('click', () => fileInput.click());
+
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('dragover');
+});
+
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+
+fileInput.addEventListener('change', (e) => {
+  handleFiles(e.target.files);
+  fileInput.value = '';
+});
+
+// 质量滑块
+document.getElementById('quality-slider').addEventListener('input', (e) => {
+  state.quality = parseInt(e.target.value) / 100;
+  document.getElementById('quality-value').textContent = e.target.value + '%';
+  reprocessAll();
+});
+
+// 格式选择按钮
+document.querySelectorAll('[data-format]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-format]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.format = btn.dataset.format;
+    reprocessAll();
+  });
+});
+
+// 缩放选择按钮
+document.querySelectorAll('[data-scale]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-scale]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.scale = parseFloat(btn.dataset.scale);
+    reprocessAll();
+  });
+});
+
+// AI智能推荐参数
+document.getElementById('ai-recommend-btn').addEventListener('click', () => {
+  if (state.images.length === 0) {
+    alert('请先上传图片，AI会根据图片大小和数量智能推荐最优压缩参数');
+    return;
+  }
+  
+  const totalSize = state.images.reduce((sum, img) => sum + img.originalSize, 0);
+  const avgSize = totalSize / state.images.length;
+  
+  let recommendQuality = 80;
+  let recommendFormat = 'webp';
+  
+  // 智能推荐逻辑
+  if (avgSize > 2 * 1024 * 1024) {
+    // 大图：70%质量，WebP格式最大化压缩
+    recommendQuality = 70;
+    recommendFormat = 'webp';
+  } else if (avgSize > 500 * 1024) {
+    // 中图：80%质量，JPG平衡画质和体积
+    recommendQuality = 80;
+    recommendFormat = 'jpeg';
+  } else {
+    // 小图：90%质量，原格式保持画质
+    recommendQuality = 90;
+    recommendFormat = 'original';
+  }
+  
+  // 应用推荐
+  state.quality = recommendQuality / 100;
+  state.format = recommendFormat;
+  
+  // 更新UI
+  document.getElementById('quality-slider').value = recommendQuality;
+  document.getElementById('quality-value').textContent = recommendQuality + '%';
+  
+  document.querySelectorAll('[data-format]').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-format="${recommendFormat}"]`).classList.add('active');
+  
+  // 重新处理
+  reprocessAll();
+  
+  const formatName = recommendFormat === 'webp' ? 'WebP' : recommendFormat === 'jpeg' ? 'JPG' : '原格式';
+  alert(`AI推荐完成！\n\n根据 ${state.images.length} 张图片（平均 ${formatSize(avgSize)}）：\n• 压缩质量：${recommendQuality}%\n• 输出格式：${formatName}\n\n已自动应用，重新处理中...`);
+});
+
+// 清空
+document.getElementById('clear-btn').addEventListener('click', () => {
+  state.images = [];
+  renderImages();
+  updateStats();
+});
+
+// 打包下载全部
+document.getElementById('download-all-btn').addEventListener('click', async () => {
+  if (state.images.length === 0) return;
+  
+  const zip = new JSZip();
+  state.images.forEach((img, idx) => {
+    const ext = getExtension(img.compressedBlob.type);
+    const baseName = img.name.replace(/\.[^.]+$/, '');
+    zip.file(`${baseName}_compressed.${ext}`, img.compressedBlob);
+  });
+  
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `picslim_compressed_${Date.now()}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// 处理文件
+async function handleFiles(files) {
+  const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+  
+  for (const file of imageFiles) {
+    const img = await loadImage(file);
+    const compressed = await compressImage(img, file.type);
+    
+    state.images.push({
+      name: file.name,
+      originalSize: file.size,
+      compressedBlob: compressed.blob,
+      compressedSize: compressed.blob.size,
+      url: URL.createObjectURL(compressed.blob),
+      originalUrl: URL.createObjectURL(file)
+    });
+  }
+  
+  renderImages();
+  updateStats();
+}
+
+// 加载图片
+function loadImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// 压缩图片
+function compressImage(img, originalType) {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const scale = state.scale;
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    
+    let mimeType = originalType;
+    if (state.format === 'jpeg') mimeType = 'image/jpeg';
+    else if (state.format === 'webp') mimeType = 'image/webp';
+    else if (state.format === 'png') mimeType = 'image/png';
+    
+    // JPG不支持透明，用白底
+    if (mimeType === 'image/jpeg') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    canvas.toBlob((blob) => {
+      resolve({ blob });
+    }, mimeType, state.quality);
+  });
+}
+
+// 重新处理所有图片
+async function reprocessAll() {
+  if (state.images.length === 0) return;
+  
+  for (let i = 0; i < state.images.length; i++) {
+    const item = state.images[i];
+    const img = await loadImage(item.compressedBlob);
+    const compressed = await compressImage(img, item.compressedBlob.type);
+    item.compressedBlob = compressed.blob;
+    item.compressedSize = compressed.blob.size;
+    URL.revokeObjectURL(item.url);
+    item.url = URL.createObjectURL(compressed.blob);
+  }
+  
+  renderImages();
+  updateStats();
+}
+
+// 渲染图片列表
+function renderImages() {
+  imageGrid.innerHTML = '';
+  
+  state.images.forEach((img, idx) => {
+    const card = document.createElement('div');
+    card.className = 'image-card';
+    card.innerHTML = `
+      <div class="image-preview">
+        <img src="${img.url}" alt="${img.name}">
+      </div>
+      <div class="image-info">
+        <div class="image-name">${img.name}</div>
+        <div class="image-size original">原始：${formatSize(img.originalSize)}</div>
+        <div class="image-size compressed">压缩后：${formatSize(img.compressedSize)}</div>
+        <div class="image-size">节省：${Math.round((1 - img.compressedSize / img.originalSize) * 100)}%</div>
+        <div class="image-actions">
+          <button class="btn btn-secondary" onclick="downloadOne(${idx})">下载</button>
+          <button class="btn btn-secondary" onclick="removeOne(${idx})">删除</button>
+        </div>
+      </div>
+    `;
+    imageGrid.appendChild(card);
+  });
+}
+
+// 更新统计
+function updateStats() {
+  if (state.images.length === 0) {
+    statsBar.style.display = 'none';
+    return;
+  }
+  
+  statsBar.style.display = 'flex';
+  
+  const totalOriginal = state.images.reduce((sum, img) => sum + img.originalSize, 0);
+  const totalCompressed = state.images.reduce((sum, img) => sum + img.compressedSize, 0);
+  const saved = Math.round((1 - totalCompressed / totalOriginal) * 100);
+  
+  document.getElementById('stat-count').textContent = state.images.length;
+  document.getElementById('stat-original').textContent = formatSize(totalOriginal);
+  document.getElementById('stat-compressed').textContent = formatSize(totalCompressed);
+  document.getElementById('stat-saved').textContent = saved + '%';
+  
+  document.getElementById('download-all-btn').disabled = state.images.length === 0;
+}
+
+// 下载单个
+window.downloadOne = function(idx) {
+  const img = state.images[idx];
+  const url = URL.createObjectURL(img.compressedBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  const ext = getExtension(img.compressedBlob.type);
+  const baseName = img.name.replace(/\.[^.]+$/, '');
+  a.download = `${baseName}_compressed.${ext}`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// 删除单个
+window.removeOne = function(idx) {
+  URL.revokeObjectURL(state.images[idx].url);
+  state.images.splice(idx, 1);
+  renderImages();
+  updateStats();
+};
+
+// 格式化大小
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+// 获取扩展名
+function getExtension(mimeType) {
+  if (mimeType === 'image/jpeg') return 'jpg';
+  if (mimeType === 'image/png') return 'png';
+  if (mimeType === 'image/webp') return 'webp';
+  if (mimeType === 'image/gif') return 'gif';
+  return 'img';
+}
+</script>
+
+</body>
+</html>
